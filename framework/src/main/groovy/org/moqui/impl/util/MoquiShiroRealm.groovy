@@ -200,16 +200,10 @@ class MoquiShiroRealm implements Realm, Authorizer {
         // no more auth failures? record the various account state updates, hasLoggedOut=N
         if (newUserAccount.getNoCheckSimple("successiveFailedLogins") || "Y".equals(newUserAccount.getNoCheckSimple("disabled")) ||
                 newUserAccount.getNoCheckSimple("disabledDateTime") != null || "Y".equals(newUserAccount.getNoCheckSimple("hasLoggedOut"))) {
-            // requireNewTransaction: this UPDATE takes an X lock on the USER_ACCOUNT row, and
-            // UserFacadeImpl.getLoginKey then inserts UserLoginKey — an FK child of that row —
-            // in its own transaction with this one suspended. Sharing the request transaction
-            // deadlocks the login against itself until innodb_lock_wait_timeout. Committing here
-            // also means the reset survives a later rollback, so an armed account clears itself
-            // instead of staying armed forever.
             try {
                 eci.service.sync().name("update", "moqui.security.UserAccount")
                         .parameters([userId:newUserAccount.userId, successiveFailedLogins:0, disabled:"N", disabledDateTime:null, hasLoggedOut:"N"])
-                        .disableAuthz().requireNewTransaction(true).call()
+                        .disableAuthz().call()
             } catch (Exception e) {
                 logger.warn("Error resetting UserAccount login status", e)
             }

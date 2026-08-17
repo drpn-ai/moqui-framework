@@ -797,9 +797,16 @@ class UserFacadeImpl implements UserFacade {
         String hashedKey = eci.ecfi.getSimpleHash(loginKey, "", eci.ecfi.getLoginKeyHashType(), false)
         Timestamp fromDate = getNowTimestamp()
         long thruTime = fromDate.getTime() + Math.round(expireHours * 60*60*1000)
+        // NO requireNewTransaction here. UserLoginKey is an FK child of UserAccount, so this INSERT takes a
+        // shared lock on the caller's own USER_ACCOUNT row. requireNewTransaction SUSPENDS the calling
+        // transaction without releasing its locks, so if that transaction already holds an X lock on the row
+        // (MoquiShiroRealm.loginPostPassword resets login state on the way in) the login waits on itself.
+        // InnoDB's deadlock detector cannot see it — the holder is suspended, not waiting — so it sits for the
+        // full innodb_lock_wait_timeout and then rolls back. Sharing the caller's transaction makes the lock
+        // request trivially compatible with whatever that transaction already holds.
         eci.serviceFacade.sync().name("create", "moqui.security.UserLoginKey")
                 .parameters([loginKey:hashedKey, userId:userId, fromDate:fromDate, thruDate:new Timestamp(thruTime)])
-                .disableAuthz().requireNewTransaction(true).call()
+                .disableAuthz().call()
 
         // clean out expired keys
         eci.entity.find("moqui.security.UserLoginKey").condition("userId", userId)
