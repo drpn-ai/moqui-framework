@@ -78,3 +78,8 @@ Desktop.ini
 
 # Linux auto files
 *~
+
+# Local runtime + tooling noise (added 2026-08-23).
+.java-version
+moqui-*.log
+component-worktrees/
