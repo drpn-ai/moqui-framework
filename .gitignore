@@ -83,3 +83,4 @@ Desktop.ini
 .java-version
 moqui-*.log
 component-worktrees/
+.gstack/
