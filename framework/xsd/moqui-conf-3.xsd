@@ -284,6 +284,14 @@ along with this software (see the LICENSE.md file). If not, see
             </xs:documentation></xs:annotation></xs:attribute>
             <xs:attribute name="allow-origins" type="xs:string"><xs:annotation><xs:documentation>
                 Comma separated list of host name or protocol plus host name to match against Origin request header; can be '*' to allow all</xs:documentation></xs:annotation></xs:attribute>
+            <xs:attribute name="public-api-origins" type="xs:string"><xs:annotation><xs:documentation>
+                Comma separated list of exact origins (protocol plus host, e.g. https://docs.example.com) allowed to call
+                the paths in public-api-paths from a browser WITHOUT credentials: no Access-Control-Allow-Credentials,
+                so the browser never sends or exposes cookies. For keyed public APIs (an API key in a header) called
+                from a docs site or other page that must not reach session-authenticated endpoints. Only consulted
+                when allow-origins does not already allow the Origin.</xs:documentation></xs:annotation></xs:attribute>
+            <xs:attribute name="public-api-paths" type="xs:string"><xs:annotation><xs:documentation>
+                Comma separated list of request path prefixes (e.g. /rest/s1/graphql/) that public-api-origins may call.</xs:documentation></xs:annotation></xs:attribute>
             <xs:attribute name="require-session-token" type="boolean-expandable" default="true"><xs:annotation><xs:documentation>
                 If not false (default true) moquiSessionToken (from ec.web.sessionToken) must be passed to all
                 screen/transition requests in a session after the first.</xs:documentation></xs:annotation></xs:attribute>

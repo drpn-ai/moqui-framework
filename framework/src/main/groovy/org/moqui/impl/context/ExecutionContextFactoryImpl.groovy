@@ -1801,6 +1801,8 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
         XmlAction beforeShutdownActions = null
         ArrayList<MNode> responseHeaderList
         Set<String> allowOriginSet = new HashSet<>()
+        Set<String> publicApiOriginSet = new HashSet<>()
+        List<String> publicApiPathList = new ArrayList<>()
 
         Integer sessionTimeoutSeconds = null
         String httpPort, httpHost, httpsPort, httpsHost
@@ -1824,6 +1826,10 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
 
             String allowOrigins = webappNode.attribute("allow-origins")
             if (allowOrigins) for (String origin in allowOrigins.split(",")) allowOriginSet.add(origin.trim().toLowerCase())
+            String publicApiOrigins = webappNode.attribute("public-api-origins")
+            if (publicApiOrigins) for (String origin in publicApiOrigins.split(",")) if (origin.trim()) publicApiOriginSet.add(origin.trim().toLowerCase())
+            String publicApiPaths = webappNode.attribute("public-api-paths")
+            if (publicApiPaths) for (String path in publicApiPaths.split(",")) if (path.trim()) publicApiPathList.add(path.trim())
 
             logger.info("Initializing webapp ${webappName} http://${httpHost}:${httpPort} https://${httpsHost}:${httpsPort} https enabled? ${httpsEnabled}")
 

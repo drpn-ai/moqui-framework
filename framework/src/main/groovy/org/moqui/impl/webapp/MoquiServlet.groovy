@@ -178,6 +178,29 @@ class MoquiServlet extends HttpServlet {
     }
 
     /** Handles CORS headers and if this a CORS preflight request or the origin is not allowed sends the proper response and returns true (caller should then not respond, ie just quit via return) */
+    /** True when origin is exactly one of public-api-origins and path is under one of public-api-paths. */
+    static boolean publicApiAllows(Set<String> origins, List<String> paths, String origin, String path) {
+        if (!origins || !paths || !origin || !path || !origins.contains(origin)) return false
+        for (String prefix in paths) if (path.startsWith(prefix)) return true
+        return false
+    }
+
+    /** CORS for a public-api origin: never Access-Control-Allow-Credentials, so the browser neither sends nor
+     * exposes cookies and a page on that origin cannot act through a user's session. Returns true when the
+     * request was a preflight and has been answered. */
+    static boolean handlePublicApiCors(HttpServletRequest request, HttpServletResponse response, String origin) {
+        response.setHeader("Access-Control-Allow-Origin", origin)
+        response.setHeader("Vary", "Origin")
+        String acRequestMethod = request.getHeader("Access-Control-Request-Method")
+        if (!"OPTIONS".equals(request.getMethod()) || acRequestMethod == null || acRequestMethod.isEmpty()) return false
+        response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+        String acRequestHeaders = request.getHeader("Access-Control-Request-Headers")
+        if (acRequestHeaders) response.setHeader("Access-Control-Allow-Headers", acRequestHeaders)
+        response.setHeader("Access-Control-Max-Age", "3600")
+        response.setStatus(HttpServletResponse.SC_OK)
+        return true
+    }
+
     static boolean handleCors(HttpServletRequest request, HttpServletResponse response, String webappName, ExecutionContextFactoryImpl ecfi) {
         ExecutionContextFactoryImpl.WebappInfo webappInfo = ecfi.getWebappInfo(webappName)
         String originHeader = request.getHeader("Origin")
@@ -223,6 +246,9 @@ class MoquiServlet extends HttpServlet {
                     }
                     if (foundMatch) {
                         response.setHeader("Access-Control-Allow-Origin", originHeader)
+                    } else if (publicApiAllows(webappInfo.publicApiOriginSet, webappInfo.publicApiPathList, originHeader,
+                            request.getServletPath() + (request.getPathInfo() ?: ""))) {
+                        return handlePublicApiCors(request, response, originHeader)
                     } else {
                         logger.warn("Returning 401, Origin ${originHeader} not allowed for configuration ${allowOriginSet} or server name ${serverName} or request host ${hostName}")
                         // Origin not allowed, send 401 response
