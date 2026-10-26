@@ -178,21 +178,30 @@ class MoquiServlet extends HttpServlet {
     }
 
     /** Handles CORS headers and if this a CORS preflight request or the origin is not allowed sends the proper response and returns true (caller should then not respond, ie just quit via return) */
-    /** True when origin is exactly one of public-api-origins and path is under one of public-api-paths. */
+    /** True when origin is exactly one of public-api-origins and path is one of public-api-paths or below it. */
     static boolean publicApiAllows(Set<String> origins, List<String> paths, String origin, String path) {
         if (!origins || !paths || !origin || !path || !origins.contains(origin)) return false
-        for (String prefix in paths) if (path.startsWith(prefix)) return true
+        for (String prefix in paths) {
+            String base = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix
+            if (path == base || path.startsWith(base + "/")) return true
+        }
         return false
     }
 
-    /** CORS for a public-api origin: never Access-Control-Allow-Credentials, so the browser neither sends nor
-     * exposes cookies and a page on that origin cannot act through a user's session. Returns true when the
-     * request was a preflight and has been answered. */
+    /** CORS for a public-api origin, credential-less on both sides: no Access-Control-Allow-Credentials, so a page
+     * cannot read a credentialed response, and a request that carries a Cookie (a simple request the browser sent
+     * with credentials, so no preflight stopped it) is refused before it reaches a session. Returns true when the
+     * request has been answered (a preflight, or a refusal). */
     static boolean handlePublicApiCors(HttpServletRequest request, HttpServletResponse response, String origin) {
+        String acRequestMethod = request.getHeader("Access-Control-Request-Method")
+        boolean preflight = "OPTIONS".equals(request.getMethod()) && acRequestMethod != null && !acRequestMethod.isEmpty()
+        if (!preflight && request.getHeader("Cookie") != null) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED)
+            return true
+        }
         response.setHeader("Access-Control-Allow-Origin", origin)
         response.setHeader("Vary", "Origin")
-        String acRequestMethod = request.getHeader("Access-Control-Request-Method")
-        if (!"OPTIONS".equals(request.getMethod()) || acRequestMethod == null || acRequestMethod.isEmpty()) return false
+        if (!preflight) return false
         response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         String acRequestHeaders = request.getHeader("Access-Control-Request-Headers")
         if (acRequestHeaders) response.setHeader("Access-Control-Allow-Headers", acRequestHeaders)
