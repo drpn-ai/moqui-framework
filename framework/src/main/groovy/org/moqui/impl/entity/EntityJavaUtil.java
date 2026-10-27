@@ -719,7 +719,7 @@ public class EntityJavaUtil {
         }
 
         @Override
-        public String toString() { return fieldInfo.name + ':' + value; }
+        public String toString() { return fieldInfo.name + ':' + (fieldInfo.encrypt && value != null ? "***" : value); }
     }
 
     public static class QueryStatsInfo {

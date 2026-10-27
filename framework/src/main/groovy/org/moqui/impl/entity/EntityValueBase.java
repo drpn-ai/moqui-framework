@@ -1386,7 +1386,19 @@ public abstract class EntityValueBase implements EntityValue {
 
     // NOTE: consider caching the hash code in the future for performance
     @Override public int hashCode() { return entityName.hashCode() + valueMapInternal.hashCode(); }
-    @Override public String toString() { return "[" + entityName + ": " + valueMapInternal.toString() + "]"; }
+    /** Prints the value with every encrypt="true" field masked: this string lands in error logs and exception messages
+     * (create/update failures), where a plaintext credential must never appear. */
+    @Override public String toString() {
+        EntityDefinition ed = getEntityDefinition();
+        // masked in a LiteStringMap copy at the field's own index, so a masked value prints in the same form as any other
+        LiteStringMap<Object> printable = null;
+        if (ed != null) for (FieldInfo fi : ed.entityInfo.allFieldInfoArray) {
+            if (!fi.encrypt || valueMapInternal.getByIString(fi.name, fi.index) == null) continue;
+            if (printable == null) printable = valueMapInternal.cloneLite();
+            printable.putByIString(fi.name, "***", fi.index);
+        }
+        return "[" + entityName + ": " + (printable != null ? printable : valueMapInternal).toString() + "]";
+    }
     @Override public Object clone() { return cloneValue(); }
     @Override public abstract EntityValue cloneValue();
     public abstract EntityValue cloneDbValue(boolean getOld);
