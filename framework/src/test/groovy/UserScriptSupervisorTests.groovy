@@ -220,6 +220,10 @@ class UserScriptSupervisorTests extends Specification {
         // BigInteger.shiftLeft would build (or overflow on) a 2^31-bit number before any check after it ran
         assertRefused(run('SCRIPT', 'var big = 1; for (var i : 1..70) { big = big * 2; } big << 2147483647'), 'NUMBER')
         assertRefused(run('EXPRESSION', "1 << '2000000000'"), 'NUMBER')
+        // a shift whose low 32 bits are 2^31 - 1 but whose long value is negative: checked as the whole number
+        assertRefused(run('EXPRESSION', 'input.big << input.by', [big: new BigInteger('2').pow(70), by: new BigInteger('-4294967296') + 2147483647]), 'NUMBER')
+        assertRefused(run('EXPRESSION', 'input.big << input.by', [big: new BigInteger('2').pow(70), by: new BigInteger('18446744073709551616') + 2000000000]), 'NUMBER')
+        assertTrue(run('EXPRESSION', '1024 << -10').ok as boolean, 'a small negative shift is in range (Java long rules apply)')
         assertEquals(1024L, run('EXPRESSION', '1 << 10').result as long)
     }
 

@@ -87,9 +87,11 @@ class ScriptArithmetic extends JexlArithmetic {
     @Override
     Object shiftLeft(Object left, Object right) {
         ScriptBudget.charge()
-        if (right instanceof Number && ((Number) right).longValue() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
-        if (right != null && !(right instanceof Number) && toBigInteger(right) > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
-        return guard(super.shiftLeft(left, right))
+        if (right == null) return guard(super.shiftLeft(left, right))
+        // NOTE: converted once and exactly; JEXL's own toInteger keeps a big number's low 32 bits, so 2^32 + n shifts by n
+        BigInteger by = toBigInteger(right)
+        if (by.abs() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
+        return guard(super.shiftLeft(left, by.intValue()))
     }
     @Override boolean testPredicate(Object value) { ScriptBudget.charge(); super.testPredicate(value) }
     @Override boolean lessThan(Object left, Object right) { ScriptBudget.charge(); super.lessThan(left, right) }
