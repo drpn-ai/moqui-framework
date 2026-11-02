@@ -146,6 +146,10 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-api:2.25.4'
     runtimeOnly 'org.apache.logging.log4j:log4j-jcl:2.25.4'
     runtimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.25.4'
+    // javax.annotation.Nonnull/Nullable (JSR-305) are used directly in framework sources. They used to arrive only by
+    // accident, through log4j 2.25.2's spotbugs-annotations; log4j 2.25.4 no longer exports it, so declare it here.
+    // Compile-only, exactly as before: it was never on the runtime classpath.
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
     // SubEtha SMTP, depends on jakarta.mail-api which is provided
     api("com.github.davidmoten:subethasmtp:7.2.0") { transitive = false }
