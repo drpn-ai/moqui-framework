@@ -67,6 +67,8 @@ dependencies {
 
     // Apache Commons
     api 'org.apache.commons:commons-csv:1.14.1' // Apache 2.0
+    // sandboxed user scripts (org.moqui.impl.script); commons-logging is already declared above
+    api('org.apache.commons:commons-jexl3:3.7.1') { exclude group: 'commons-logging' } // Apache 2.0
     api('org.apache.commons:commons-email2-jakarta:2.0.0-M1') {
         exclude group: 'com.sun.mail', module: 'jakarta.mail'
         exclude group: 'com.sun.activation', module: 'jakarta.activation'

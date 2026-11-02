@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Input, delivery and busy-check services that UserScriptDeploymentTests names on its deployments. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="read" noun="Orders">
+        <in-parameters>
+            <parameter name="scriptDeployment" type="Map"/>
+            <parameter name="userScriptId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="input" type="Object"/>
+            <parameter name="inputSummary" type="Map"/>
+        </out-parameters>
+        <actions>
+            <set field="input" from="[orders:[[orderId:'SO-1', itemsBackordered:[[sku:'A', quantity:2]]],
+                    [orderId:'SO-2', itemsBackordered:[[sku:'A', quantity:1], [sku:'B', quantity:4]]]]]"/>
+            <set field="inputSummary" from="[source:'orders', deploymentId:scriptDeployment.scriptDeploymentId]"/>
+        </actions>
+    </service>
+    <service verb="read" noun="Nothing">
+        <in-parameters>
+            <parameter name="scriptDeployment" type="Map"/>
+            <parameter name="userScriptId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="input" type="Object"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><set field="message" value="No finished result to read yet."/></actions>
+    </service>
+
+    <service verb="deliver" noun="ToTestEntity">
+        <description>Records each delivery as a moqui.test.TestEntity row: testMedium = deployment id, testLong = the script result as JSON.</description>
+        <in-parameters>
+            <parameter name="scriptDeployment" type="Map" required="true"/>
+            <parameter name="scriptResult" type="Object" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="create#moqui.test.TestEntity" in-map="[testMedium:scriptDeployment.scriptDeploymentId,
+                    testLong:groovy.json.JsonOutput.toJson(scriptResult)]"/>
+            <set field="message" value="Recorded."/>
+        </actions>
+    </service>
+    <service verb="deliver" noun="Refused">
+        <in-parameters>
+            <parameter name="scriptDeployment" type="Map"/>
+            <parameter name="scriptResult" type="Object"/>
+        </in-parameters>
+        <actions><return error="true" message="The endpoint refused it."/></actions>
+    </service>
+
+    <service verb="check" noun="QueueFull">
+        <out-parameters><parameter name="busyReason"/></out-parameters>
+        <actions><set field="busyReason" value="the order queue is full"/></actions>
+    </service>
+</services>

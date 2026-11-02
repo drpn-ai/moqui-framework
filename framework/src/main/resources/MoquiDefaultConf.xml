@@ -523,6 +523,7 @@
         <load-entity location="classpath://entity/EntityEntities.xml"/>
         <load-entity location="classpath://entity/OlapEntities.xml"/>
         <load-entity location="classpath://entity/ResourceEntities.xml"/>
+        <load-entity location="classpath://entity/ScriptEntities.xml"/>
         <load-entity location="classpath://entity/ScreenEntities.xml"/>
         <load-entity location="classpath://entity/Screen.eecas.xml"/>
         <load-entity location="classpath://entity/SecurityEntities.xml"/>
