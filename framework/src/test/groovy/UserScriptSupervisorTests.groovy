@@ -241,6 +241,22 @@ class UserScriptSupervisorTests extends Specification {
         assertEquals(256, ScriptArithmetic.shiftAmount(256L))
     }
 
+    def "aHugeExponentLiteralIsRefusedBeforeTheScriptRuns"() {
+        given:
+        // 1E999999999B passes no input cap, and a failing script's source is rendered through DecimalFormat in full
+        ['1E999999999B + 1', '1E-999999999B - 1', '1E999999999B % 7', '1E5000B', 'var x = 2.5E+0012345B; input.nope.nope'].each { String body ->
+            Map out = run('SCRIPT', body)
+            assertRefused(out, 'NOT_ALLOWED')
+            assertEquals(1, (out.error as Map).line)
+        }
+        assertTrue(run('EXPRESSION', '1E300B * 2 > 1E299B').ok as boolean, 'an exponent up to 1000 stays available')
+        assertTrue(run('EXPRESSION', "size('4E1200 is a product id')").ok as boolean, 'text that looks like a number is only text')
+        assertTrue(run('EXPRESSION', '1e5000 > 1').ok as boolean, 'a double literal past its range is Infinity, nothing is built')
+        // an input integer past the number cap is refused before an operator builds on it
+        assertRefused(run('EXPRESSION', 'input.x + 1', [x: new BigInteger('2').pow(300)]), 'NUMBER')
+        assertEquals(new BigDecimal('2.50'), run('EXPRESSION', '1.25B * 2').result)
+    }
+
     def "textPatternMatchingIsRefused"() {
         given:
         assertRefused(run('SCRIPT', "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' =~ '(a+)+b'"), 'ACCESS')

@@ -58,6 +58,7 @@ class ScriptArithmetic extends JexlArithmetic {
             if (!ScriptBudget.isScalar(left) || !ScriptBudget.isScalar(right)) throw new LimitReached('ACCESS', 'Text can only be joined with text or numbers; use fn:join for a list.')
             ScriptBudget.checkLength(scalarLength(left) + scalarLength(right))
         }
+        checkOperands(left, right)
         return guard(super.add(left, right))
     }
 
@@ -72,6 +73,7 @@ class ScriptArithmetic extends JexlArithmetic {
     Object multiply(Object left, Object right) {
         ScriptBudget.charge()
         try {
+            checkOperands(left, right)
             return guard(super.multiply(left, right))
         } catch (ArithmeticException e) {
             // NOTE: JEXL 3.7 has its own BigInteger precision cap; report it as the same limit
@@ -80,14 +82,15 @@ class ScriptArithmetic extends JexlArithmetic {
         }
     }
 
-    @Override Object subtract(Object left, Object right) { ScriptBudget.charge(); guard(super.subtract(left, right)) }
-    @Override Object divide(Object left, Object right) { ScriptBudget.charge(); guard(super.divide(left, right)) }
-    @Override Object mod(Object left, Object right) { ScriptBudget.charge(); guard(super.mod(left, right)) }
+    @Override Object subtract(Object left, Object right) { ScriptBudget.charge(); checkOperands(left, right); guard(super.subtract(left, right)) }
+    @Override Object divide(Object left, Object right) { ScriptBudget.charge(); checkOperands(left, right); guard(super.divide(left, right)) }
+    @Override Object mod(Object left, Object right) { ScriptBudget.charge(); checkOperands(left, right); guard(super.mod(left, right)) }
     /** BigInteger.shiftLeft builds the whole result before guard sees it, so a shift past the number cap is refused first */
     @Override
     Object shiftLeft(Object left, Object right) {
         ScriptBudget.charge()
         if (right == null) return guard(super.shiftLeft(left, right))
+        checkOperands(left, null)
         return guard(super.shiftLeft(left, shiftAmount(right)))
     }
 
@@ -213,6 +216,17 @@ class ScriptArithmetic extends JexlArithmetic {
     Object arraySet(Object target, Object key, Object value) { propertySet(target, key, value) }
 
     // -- helpers
+
+    /**
+     * Refuses an operand too big to compute with, before the operator builds anything: a literal (1E999999999B) never
+     * passes the input or fn:dec caps, and BigDecimal.add of it builds a billion digits that no time limit can interrupt.
+     */
+    static void checkOperands(Object left, Object right) {
+        for (Object value : [left, right]) {
+            if (value instanceof BigDecimal) ScriptBudget.checkDecimal((BigDecimal) value)
+            else if (value instanceof BigInteger && ((BigInteger) value).bitLength() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
+        }
+    }
 
     static List arrayItems(Object array) {
         int length = Array.getLength(array)

@@ -25,7 +25,11 @@ import org.apache.commons.jexl3.JexlFeatures
 import org.apache.commons.jexl3.JexlInfo
 import org.apache.commons.jexl3.JexlScript
 import org.apache.commons.jexl3.MapContext
+import org.apache.commons.jexl3.internal.Script
+import org.apache.commons.jexl3.parser.ASTNumberLiteral
+import org.apache.commons.jexl3.parser.JexlNode
 
+import java.lang.reflect.Field
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Future
@@ -144,6 +148,12 @@ class ScriptSupervisor {
         } catch (JexlException e) {
             return failure(profileName, e instanceof JexlException.Feature ? 'NOT_ALLOWED' : 'SYNTAX', message(e), e)
         }
+        int literalLine = hugeNumberLiteralLine(script)
+        if (literalLine > 0) {
+            Map<String, Object> refused = failure(profileName, 'NOT_ALLOWED', "A number written with more than ${ScriptBudget.MAX_DECIMAL_CHARS} digits (like 1E5000B) is not available.".toString())
+            (refused.error as Map).line = literalLine
+            return refused
+        }
         List<String> names = (script.variables ?: [] as Set<List<String>>).collect { List<String> path -> path ? path[0] : null }
                 .findAll { it }.unique() as List<String>
         List<String> unknown = names.findAll { it != INPUT_NAME }
@@ -247,6 +257,36 @@ class ScriptSupervisor {
 
     private static Map<String, Object> refused(String rule, Object line, String message) {
         return [ok: false, problems: [[rule: rule, line: line, message: message]], notes: []] as Map<String, Object>
+    }
+
+    private static final Field SCRIPT_TREE = scriptTreeField()
+
+    private static Field scriptTreeField() {
+        Field field = Script.getDeclaredField('script')
+        field.accessible = true
+        return field
+    }
+
+    /**
+     * The line of the first number literal whose plain text is longer than ScriptBudget.MAX_DECIMAL_CHARS, or 0.
+     * 1E999999999B is a BigDecimal no input cap sees, and whenever the script fails JEXL renders its source through
+     * DecimalFormat, which writes that number out in full: a billion characters on the caller's thread, outside the
+     * time limit. Read from the parsed tree, so text that only looks like a number ('4E1200' in a string) is fine.
+     */
+    static int hugeNumberLiteralLine(JexlScript script) {
+        Deque<JexlNode> todo = new ArrayDeque<>()
+        todo.push((JexlNode) SCRIPT_TREE.get(script))
+        while (!todo.isEmpty()) {
+            JexlNode node = todo.pop()
+            if (node instanceof ASTNumberLiteral) {
+                Number literal = ((ASTNumberLiteral) node).literal
+                if (literal instanceof BigDecimal && ScriptBudget.plainLength((BigDecimal) literal) > ScriptBudget.MAX_DECIMAL_CHARS) {
+                    return node.jexlInfo()?.line ?: 1
+                }
+            }
+            for (int i = 0; i < node.jjtGetNumChildren(); i++) todo.push(node.jjtGetChild(i))
+        }
+        return 0
     }
 
     /**
