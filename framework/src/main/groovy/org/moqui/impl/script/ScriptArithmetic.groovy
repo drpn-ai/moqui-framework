@@ -93,7 +93,7 @@ class ScriptArithmetic extends JexlArithmetic {
 
     /**
      * The shift as an int within +/-MAX_NUMBER_BITS, bounded by its type before any conversion: JEXL's toInteger keeps
-     * a big number's low 32 bits (2^32 + n shifts by n), and converting 1E999999999 to a BigInteger builds it whole.
+     * a big number's low 32 bits (2^32 + n shifts by n), and converting 1E999999999 (or 1E-999999999) builds a billion digits.
      */
     static int shiftAmount(Object right) {
         BigInteger by
@@ -102,8 +102,10 @@ class ScriptArithmetic extends JexlArithmetic {
         } else if (right instanceof BigInteger) {
             by = ((BigInteger) right).bitLength() > 31 ? null : (BigInteger) right
         } else if (right instanceof BigDecimal) {
+            // NOTE: toBigInteger divides by 10^scale, so 1E-999999999 would build a billion-digit power of ten
             BigDecimal number = (BigDecimal) right
-            by = number.precision() - number.scale() > 10 ? null : number.toBigInteger()
+            int integerDigits = number.precision() - number.scale()
+            by = integerDigits <= 0 ? BigInteger.ZERO : (integerDigits > 10 || number.scale() > 64 ? null : number.toBigInteger())
         } else if (right instanceof Double || right instanceof Float) {
             double number = ((Number) right).doubleValue()
             by = Double.isFinite(number) && Math.abs(number) <= MAX_NUMBER_BITS ? BigInteger.valueOf((long) number) : null
