@@ -142,6 +142,12 @@ class ScriptSupervisor {
             (refused.error as Map).line = templateLine
             return refused
         }
+        int bigLiteralLine = bigDecimalLiteralLine(source)
+        if (bigLiteralLine > 0) {
+            Map<String, Object> refused = failure(profileName, 'NOT_ALLOWED', "A number written with more than ${ScriptBudget.MAX_DECIMAL_CHARS} digits (like 1E5000B) is not available.".toString())
+            (refused.error as Map).line = bigLiteralLine
+            return refused
+        }
         JexlScript script
         try {
             script = ENGINES[profileName].createScript(new JexlInfo('script', 1, 1), source)
@@ -257,6 +263,31 @@ class ScriptSupervisor {
 
     private static Map<String, Object> refused(String rule, Object line, String message) {
         return [ok: false, problems: [[rule: rule, line: line, message: message]], notes: []] as Map<String, Object>
+    }
+
+    /** a decimal literal with an exponent: only the B suffix makes a BigDecimal, an unsuffixed one is a double */
+    private static final java.util.regex.Pattern BIG_DECIMAL_LITERAL = ~/(?<![\w$])(\d[\d_]*(?:\.\d*)?[eE][+-]?\d+)[bB](?![\w$])/
+
+    /**
+     * The line of the first B literal past ScriptBudget.MAX_DECIMAL_CHARS, read from the source before JEXL parses it:
+     * a parse error can render the source, literal and all, before hugeNumberLiteralLine sees the tree. Measured on a
+     * compact BigDecimal, never written out.
+     * NOTE: refused anywhere, even in a string, for the same reason as templateLiteralLine
+     */
+    static int bigDecimalLiteralLine(String source) {
+        java.util.regex.Matcher found = BIG_DECIMAL_LITERAL.matcher(source)
+        while (found.find()) {
+            BigDecimal literal
+            try {
+                literal = new BigDecimal(found.group(1).replace('_', ''))
+            } catch (NumberFormatException ignored) {
+                literal = null
+            }
+            if (literal == null || ScriptBudget.plainLength(literal) > ScriptBudget.MAX_DECIMAL_CHARS) {
+                return source.substring(0, found.start()).count('\n') + 1
+            }
+        }
+        return 0
     }
 
     private static final Field SCRIPT_TREE = scriptTreeField()

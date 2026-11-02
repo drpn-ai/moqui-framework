@@ -58,7 +58,8 @@ class ScriptArithmetic extends JexlArithmetic {
             if (!ScriptBudget.isScalar(left) || !ScriptBudget.isScalar(right)) throw new LimitReached('ACCESS', 'Text can only be joined with text or numbers; use fn:join for a list.')
             ScriptBudget.checkLength(scalarLength(left) + scalarLength(right))
         }
-        checkOperands(left, right)
+        // NOTE: text + anything joins text, so an id like '4E1200' is never read as a number here
+        if (!(left instanceof CharSequence || right instanceof CharSequence)) checkOperands(left, right)
         return guard(super.add(left, right))
     }
 
@@ -222,10 +223,42 @@ class ScriptArithmetic extends JexlArithmetic {
      * passes the input or fn:dec caps, and BigDecimal.add of it builds a billion digits that no time limit can interrupt.
      */
     static void checkOperands(Object left, Object right) {
-        for (Object value : [left, right]) {
-            if (value instanceof BigDecimal) ScriptBudget.checkDecimal((BigDecimal) value)
-            else if (value instanceof BigInteger && ((BigInteger) value).bitLength() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
+        checkNumber(left)
+        checkNumber(right)
+    }
+
+    /**
+     * Refuses a value too big to compute with, without building it: a decimal past MAX_DECIMAL_CHARS, an integer past
+     * MAX_NUMBER_BITS, or text that reads as one ('1E999999999' - 1 turns the text into a compact BigDecimal first).
+     */
+    static void checkNumber(Object value) {
+        if (value instanceof BigDecimal) {
+            ScriptBudget.checkDecimal((BigDecimal) value)
+        } else if (value instanceof BigInteger) {
+            if (((BigInteger) value).bitLength() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
+        } else if (value instanceof CharSequence) {
+            CharSequence text = (CharSequence) value
+            // NOTE: only short text is parsed here; longer number text is at most the source or input size, never inflated
+            if (text.length() <= 64) {
+                BigDecimal parsed = null
+                try { parsed = new BigDecimal(text.toString().trim()) } catch (NumberFormatException ignored) { }
+                if (parsed != null) ScriptBudget.checkDecimal(parsed)
+            }
         }
+    }
+
+    /** every conversion JEXL makes to a decimal is checked before it is used */
+    @Override
+    BigDecimal toBigDecimal(Object value) {
+        checkNumber(value)
+        return ScriptBudget.checkDecimal(super.toBigDecimal(value))
+    }
+
+    /** every conversion JEXL makes to an integer is checked first: 1E999999999 as a BigInteger is a billion digits */
+    @Override
+    BigInteger toBigInteger(Object value) {
+        checkNumber(value)
+        return super.toBigInteger(value)
     }
 
     static List arrayItems(Object array) {

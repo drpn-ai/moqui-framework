@@ -252,6 +252,16 @@ class UserScriptSupervisorTests extends Specification {
         assertTrue(run('EXPRESSION', '1E300B * 2 > 1E299B').ok as boolean, 'an exponent up to 1000 stays available')
         assertTrue(run('EXPRESSION', "size('4E1200 is a product id')").ok as boolean, 'text that looks like a number is only text')
         assertTrue(run('EXPRESSION', '1e5000 > 1').ok as boolean, 'a double literal past its range is Infinity, nothing is built')
+        // refused before JEXL parses: a parse error (a method call here) could otherwise render the literal
+        Map parseTime = run('SCRIPT', 'var a = 1E999999999B; a.foo()')
+        assertRefused(parseTime, 'NOT_ALLOWED')
+        assertTrue(((parseTime.error as Map).message as String).contains('more than'), "${parseTime.error}")
+        // text JEXL turns into a number is checked before it is computed with
+        ["'1E999999999' - 1", "'1E999999999' * 2", "'1E-999999999' % 7", 'input.s - 1', 'input.s / 3'].each { String body ->
+            assertRefused(run('EXPRESSION', body, [s: '1E999999999']), 'NUMBER')
+        }
+        assertEquals('41.5', String.valueOf(run('EXPRESSION', "'42.5' - 1").result))
+        assertEquals('4E1200-A', run('EXPRESSION', "'4E1200' + '-A'").result, 'text that looks like a number still joins')
         // an input integer past the number cap is refused before an operator builds on it
         assertRefused(run('EXPRESSION', 'input.x + 1', [x: new BigInteger('2').pow(300)]), 'NUMBER')
         assertEquals(new BigDecimal('2.50'), run('EXPRESSION', '1.25B * 2').result)
