@@ -12,6 +12,7 @@
  * <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 import org.moqui.impl.script.ScriptArithmetic
+import org.moqui.impl.script.ScriptBudget
 import org.moqui.impl.script.ScriptLibrary
 import org.moqui.impl.script.ScriptPermissions
 import org.moqui.impl.script.ScriptSupervisor
@@ -225,6 +226,18 @@ class UserScriptSupervisorTests extends Specification {
         assertRefused(run('EXPRESSION', 'input.big << input.by', [big: new BigInteger('2').pow(70), by: new BigInteger('18446744073709551616') + 2000000000]), 'NUMBER')
         assertTrue(run('EXPRESSION', '1024 << -10').ok as boolean, 'a small negative shift is in range (Java long rules apply)')
         assertEquals(1024L, run('EXPRESSION', '1 << 10').result as long)
+        // the amount is bounded by its type before it is converted: 1E999999999 as a BigInteger is a billion digits
+        [new BigDecimal('1E999999999'), new BigInteger('2').pow(4000), 1e300d, Double.NaN, '99999999999', [1]].each { Object amount ->
+            try {
+                ScriptArithmetic.shiftAmount(amount)
+                assertTrue(false, "${amount} should be refused")
+            } catch (ScriptBudget.LimitReached expected) {
+                assertEquals('NUMBER', expected.kind)
+            }
+        }
+        assertEquals(-3, ScriptArithmetic.shiftAmount(new BigDecimal('-3.7')))
+        assertEquals(12, ScriptArithmetic.shiftAmount(' 12 '))
+        assertEquals(256, ScriptArithmetic.shiftAmount(256L))
     }
 
     def "textPatternMatchingIsRefused"() {

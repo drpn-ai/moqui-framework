@@ -88,10 +88,32 @@ class ScriptArithmetic extends JexlArithmetic {
     Object shiftLeft(Object left, Object right) {
         ScriptBudget.charge()
         if (right == null) return guard(super.shiftLeft(left, right))
-        // NOTE: converted once and exactly; JEXL's own toInteger keeps a big number's low 32 bits, so 2^32 + n shifts by n
-        BigInteger by = toBigInteger(right)
-        if (by.abs() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
-        return guard(super.shiftLeft(left, by.intValue()))
+        return guard(super.shiftLeft(left, shiftAmount(right)))
+    }
+
+    /**
+     * The shift as an int within +/-MAX_NUMBER_BITS, bounded by its type before any conversion: JEXL's toInteger keeps
+     * a big number's low 32 bits (2^32 + n shifts by n), and converting 1E999999999 to a BigInteger builds it whole.
+     */
+    static int shiftAmount(Object right) {
+        BigInteger by
+        if (right instanceof Integer || right instanceof Long || right instanceof Short || right instanceof Byte) {
+            by = BigInteger.valueOf(((Number) right).longValue())
+        } else if (right instanceof BigInteger) {
+            by = ((BigInteger) right).bitLength() > 31 ? null : (BigInteger) right
+        } else if (right instanceof BigDecimal) {
+            BigDecimal number = (BigDecimal) right
+            by = number.precision() - number.scale() > 10 ? null : number.toBigInteger()
+        } else if (right instanceof Double || right instanceof Float) {
+            double number = ((Number) right).doubleValue()
+            by = Double.isFinite(number) && Math.abs(number) <= MAX_NUMBER_BITS ? BigInteger.valueOf((long) number) : null
+        } else if (right instanceof CharSequence && right.toString().trim().length() <= 10 && right.toString().trim().isInteger()) {
+            by = new BigInteger(right.toString().trim())
+        } else {
+            throw new LimitReached('NUMBER', 'A shift takes a whole number.')
+        }
+        if (by == null || by.abs() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
+        return by.intValue()
     }
     @Override boolean testPredicate(Object value) { ScriptBudget.charge(); super.testPredicate(value) }
     @Override boolean lessThan(Object left, Object right) { ScriptBudget.charge(); super.lessThan(left, right) }
