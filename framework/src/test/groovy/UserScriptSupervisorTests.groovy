@@ -17,14 +17,17 @@ import org.moqui.impl.script.ScriptLibrary
 import org.moqui.impl.script.ScriptPermissions
 import org.moqui.impl.script.ScriptSupervisor
 import spock.lang.Specification
+import org.junit.jupiter.api.function.Executable
 
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 
 import static org.junit.jupiter.api.Assertions.assertEquals
 import static org.junit.jupiter.api.Assertions.assertFalse
 import static org.junit.jupiter.api.Assertions.assertNull
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import static org.junit.jupiter.api.Assertions.assertTrue
 
 /**
@@ -265,6 +268,70 @@ class UserScriptSupervisorTests extends Specification {
         // an input integer past the number cap is refused before an operator builds on it
         assertRefused(run('EXPRESSION', 'input.x + 1', [x: new BigInteger('2').pow(300)]), 'NUMBER')
         assertEquals(new BigDecimal('2.50'), run('EXPRESSION', '1.25B * 2').result)
+    }
+
+    // NOTE: '0' * 60 + '1E999999999' is 71 characters, past the old 64-character parse gate, yet reads as the same compact number
+    private static final String PADDED_HUGE = '0' * 60 + '1E999999999'
+
+    def "longPaddedExponentTextIsRefusedAsANumber"() {
+        given:
+        assertTrue(PADDED_HUGE.length() > 64)
+        assertTimeoutPreemptively(Duration.ofSeconds(5), {
+            // the check itself, and the integer conversion JEXL makes: neither may let the text through unparsed
+            Map<String, String> outcomes = [:]
+            outcomes['checkNumber'] = refusalKind { ScriptArithmetic.checkNumber(PADDED_HUGE) }
+            outcomes['toBigInteger'] = refusalKind { new ScriptArithmetic().toBigInteger(PADDED_HUGE) }
+            outcomes['toBigDecimal'] = refusalKind { new ScriptArithmetic().toBigDecimal(PADDED_HUGE) }
+            // and every operator that converts the text
+            ['input.s << 1', 'input.s * 2', 'input.s - 1', 'input.s / 3', 'input.s % 7', '1 - input.s'].each { String body ->
+                Map out = run('EXPRESSION', body, [s: PADDED_HUGE])
+                outcomes[body] = out.ok ? "ok: ${out.result}".toString() : (out.error as Map).kind as String
+            }
+            assertEquals(outcomes.keySet().collectEntries { [(it): 'NUMBER'] }, outcomes, 'every path refuses the text as a NUMBER')
+        } as Executable)
+    }
+
+    def "longOrdinaryTextStillWorks"() {
+        given:
+        String left = 'order note ' * 10
+        String right = 'x' * 70 + '-E9'
+        Map out = run('EXPRESSION', 'input.a + input.b', [a: left, b: right])
+        assertTrue(out.ok as boolean, "${out}")
+        assertEquals(left + right, out.result)
+        ScriptArithmetic.checkNumber(left)
+        ScriptArithmetic.checkNumber(right)
+        assertEquals('4E1200' * 20 + '-A', run('EXPRESSION', 'input.id + \'-A\'', [id: '4E1200' * 20]).result, 'long text that looks like a number still joins')
+    }
+
+    def "longOrdinaryNumberTextStillComputes"() {
+        given:
+        // 70 digits is under the 256-bit cap and the 1,000-digit decimal cap, so the check lets it through and it computes
+        String seventyDigits = '1' + '0' * 69
+        ScriptArithmetic.checkNumber(seventyDigits)
+        // NOTE: JEXL rounds a decimal conversion to its 34-digit context; 1E+69 is the same value
+        assertEquals(0, new BigDecimal(seventyDigits).compareTo(new ScriptArithmetic().toBigDecimal(seventyDigits)))
+        Map decimal = run('EXPRESSION', 'input.s - 0.5', [s: seventyDigits])
+        assertTrue(decimal.ok as boolean, "${decimal}")
+        // NOTE: an integer conversion of it stays refused by JEXL's own 34-digit integer precision, as it was before
+        // zero-padded past 64 characters, inside that precision: computes as the number it reads as
+        String padded = '0' * 40 + '123456789012345678901234567890'
+        assertTrue(padded.length() > 64)
+        assertEquals(new BigInteger('123456789012345678901234567890'), new ScriptArithmetic().toBigInteger(padded))
+        assertEquals('123456789012345678901234567889', String.valueOf(run('EXPRESSION', 'input.s - 1', [s: padded]).result))
+        assertEquals('246913578024691357802469135780', String.valueOf(run('EXPRESSION', 'input.s * 2', [s: padded]).result))
+        assertEquals('41', String.valueOf(run('EXPRESSION', 'input.s - 1', [s: '0' * 80 + '42']).result))
+    }
+
+    /** the LimitReached kind a call throws, 'none' when it returns, or the other exception's class */
+    private static String refusalKind(Closure call) {
+        try {
+            call()
+            return 'none'
+        } catch (ScriptBudget.LimitReached e) {
+            return e.kind
+        } catch (Exception e) {
+            return e.getClass().simpleName
+        }
     }
 
     def "textPatternMatchingIsRefused"() {
