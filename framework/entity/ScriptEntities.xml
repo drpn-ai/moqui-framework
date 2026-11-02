@@ -43,11 +43,11 @@ along with this software (see the LICENSE.md file). If not, see
             <description>Quartz cron, e.g. 0 0 9 * * ? (09:00 daily).</description></field>
         <field name="timeZone" type="text-short"><description>Zone id the cron is read in; the server's zone when empty.</description></field>
         <field name="inputServiceName" type="text-medium">
-            <description>Service called with scriptDeployment (Map) and userScriptId, returning input (any JSON-shaped
+            <description>A service implementing org.moqui.impl.ScriptServices.read#UserScriptDeploymentInput, called with scriptDeployment (Map) and userScriptId, returning input (any JSON-shaped
                 value) and optionally inputSummary; no input means nothing runs (NO_INPUT). When empty the script's
                 sampleInputJson is the input.</description></field>
         <field name="deliveryServiceName" type="text-medium" not-null="true">
-            <description>Service called with scriptDeployment (Map) and scriptResult (what the script returned), and only when
+            <description>A service implementing org.moqui.impl.ScriptServices.deliver#UserScriptDeploymentResult, called with scriptDeployment (Map) and scriptResult (what the script returned), and only when
                 the result is not empty; an error it adds marks the run NOT_DELIVERED, its message out-parameter is recorded.</description></field>
         <field name="isActive" type="text-indicator"/>
         <field name="nextRunDate" type="date-time"><description>When it is next due; set on save and moved forward as each run is claimed.</description></field>

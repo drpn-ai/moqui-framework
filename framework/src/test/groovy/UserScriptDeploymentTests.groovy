@@ -128,10 +128,32 @@ class UserScriptDeploymentTests extends Specification {
         then:
         errors.contains('is not a Quartz cron expression')
         errors.contains("'Mars/Olympus' is not a time zone id")
-        errors.contains('Delivery service no.such.Services.send#It is not defined')
+        errors.contains('Delivery service no.such.Services.send#It does not implement')
         !ec.message.hasError()
         // 09:00 in Kolkata is 03:30 UTC
         (stored.nextRunDate as Timestamp).toInstant().toString().substring(11, 16) == '03:30'
+    }
+
+    def "a deployment names only services that implement the input or delivery interface, at store and at run"() {
+        when:
+        storeScript('USS_TEST_BACK', BACKORDERS)
+        call("${SVC}.store#UserScriptDeployment", [scriptDeploymentId: 'USD_TEST_UNMARKED', userScriptId: 'USS_TEST_BACK',
+                cronExpression: '0 0 9 * * ?', inputServiceName: "${TEST_SVC}.delete#Everything",
+                deliveryServiceName: "${TEST_SVC}.delete#Everything"])
+        String errors = ec.message.errorsString
+        ec.message.clearErrors()
+        // a row written straight to the database is refused again when it runs
+        storeDeployment('USD_TEST_UNMARKED', 'USS_TEST_BACK', "${TEST_SVC}.deliver#ToTestEntity")
+        ec.entity.find('moqui.script.UserScriptDeployment').condition('scriptDeploymentId', 'USD_TEST_UNMARKED').one()
+                .set('deliveryServiceName', "${TEST_SVC}.delete#Everything".toString()).update()
+        Map out = call("${SVC}.run#UserScriptDeployment", [scriptDeploymentId: 'USD_TEST_UNMARKED', deliver: true])
+
+        then:
+        errors.contains("Input service ${TEST_SVC}.delete#Everything does not implement org.moqui.impl.ScriptServices.read#UserScriptDeploymentInput")
+        errors.contains("Delivery service ${TEST_SVC}.delete#Everything does not implement org.moqui.impl.ScriptServices.deliver#UserScriptDeploymentResult")
+        out.status == 'NOT_DELIVERED'
+        out.message.contains('does not implement')
+        deliveries('USD_TEST_UNMARKED_RAN').isEmpty()
     }
 
     def "a preview runs the script and delivers nothing"() {

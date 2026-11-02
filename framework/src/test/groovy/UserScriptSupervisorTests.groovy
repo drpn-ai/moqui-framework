@@ -215,6 +215,14 @@ class UserScriptSupervisorTests extends Specification {
         assertTrue(permissions.compose('java.lang.*').is(permissions), 'compose must not widen the set')
     }
 
+    def "aShiftPastTheNumberCapIsRefusedBeforeItIsBuilt"() {
+        given:
+        // BigInteger.shiftLeft would build (or overflow on) a 2^31-bit number before any check after it ran
+        assertRefused(run('SCRIPT', 'var big = 1; for (var i : 1..70) { big = big * 2; } big << 2147483647'), 'NUMBER')
+        assertRefused(run('EXPRESSION', "1 << '2000000000'"), 'NUMBER')
+        assertEquals(1024L, run('EXPRESSION', '1 << 10').result as long)
+    }
+
     def "textPatternMatchingIsRefused"() {
         given:
         assertRefused(run('SCRIPT', "'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' =~ '(a+)+b'"), 'ACCESS')

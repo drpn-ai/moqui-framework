@@ -16,7 +16,10 @@ package org.moqui.impl.script
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityValue
+import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.service.ScheduledJobRunner
+import org.moqui.impl.service.ServiceDefinition
+import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -36,6 +39,9 @@ class ScriptDeploymentRunner {
 
     static final String ENTITY = 'moqui.script.UserScriptDeployment'
     static final String SCRIPT_ENTITY = 'moqui.script.UserScript'
+    /** the only services a deployment may name: the scheduler runs them with no user, so a free name would run anything */
+    static final String INPUT_INTERFACE = 'org.moqui.impl.ScriptServices.read#UserScriptDeploymentInput'
+    static final String DELIVERY_INTERFACE = 'org.moqui.impl.ScriptServices.deliver#UserScriptDeploymentResult'
 
     static final String DELIVERED = 'DELIVERED'
     static final String PREVIEW = 'PREVIEW'
@@ -100,7 +106,11 @@ class ScriptDeploymentRunner {
         if (isNothing(result)) return base + [status: NOTHING_TO_DELIVER, message: 'The script returned nothing, so nothing was delivered.']
         if (!deliver) return base + [status: PREVIEW, message: 'Preview only: nothing was delivered.']
 
-        Map<String, Object> delivery = ec.service.sync().name(deployment.deliveryServiceName as String)
+        String deliveryServiceName = deployment.deliveryServiceName
+        if (!implementsInterface(ec, deliveryServiceName, DELIVERY_INTERFACE)) {
+            return base + [status: NOT_DELIVERED, message: "Not delivered: ${deliveryServiceName} does not implement ${DELIVERY_INTERFACE}.".toString()]
+        }
+        Map<String, Object> delivery = ec.service.sync().name(deliveryServiceName)
                 .parameters([scriptDeployment: deployment.getMap(), scriptResult: result]).call()
         if (ec.message.hasError()) {
             return base + [status: NOT_DELIVERED, message: "Not delivered: ${ec.message.errorsString}".toString()]
@@ -119,6 +129,9 @@ class ScriptDeploymentRunner {
                 return [status: NO_INPUT, message: "Sample input: ${e.message}".toString()] as Map<String, Object>
             }
         }
+        if (!implementsInterface(ec, inputServiceName, INPUT_INTERFACE)) {
+            return [status: NO_INPUT, message: "${inputServiceName} does not implement ${INPUT_INTERFACE}.".toString()] as Map<String, Object>
+        }
         Map<String, Object> out = ec.service.sync().name(inputServiceName)
                 .parameters([scriptDeployment: deployment.getMap(), userScriptId: script.userScriptId]).call()
         if (ec.message.hasError()) return [status: NO_INPUT, message: ec.message.errorsString] as Map<String, Object>
@@ -126,6 +139,14 @@ class ScriptDeploymentRunner {
             return [status: NO_INPUT, message: (out?.get('message') ?: 'The input service returned no input.').toString()] as Map<String, Object>
         }
         return [input: out.input, inputSummary: out.inputSummary ?: [source: inputServiceName]] as Map<String, Object>
+    }
+
+    /** True when serviceName is defined and declares implements service=interfaceName. */
+    static boolean implementsInterface(ExecutionContext ec, String serviceName, String interfaceName) {
+        if (!serviceName) return false
+        ServiceDefinition sd = ((ExecutionContextImpl) ec).serviceFacade.getServiceDefinition(serviceName)
+        if (sd == null) return false
+        return sd.serviceNode.children('implements').any { MNode node -> node.attribute('service') == interfaceName }
     }
 
     static boolean isNothing(Object result) {

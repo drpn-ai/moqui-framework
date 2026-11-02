@@ -16,14 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <service verb="read" noun="Orders">
-        <in-parameters>
-            <parameter name="scriptDeployment" type="Map"/>
-            <parameter name="userScriptId"/>
-        </in-parameters>
-        <out-parameters>
-            <parameter name="input" type="Object"/>
-            <parameter name="inputSummary" type="Map"/>
-        </out-parameters>
+        <implements service="org.moqui.impl.ScriptServices.read#UserScriptDeploymentInput"/>
         <actions>
             <set field="input" from="[orders:[[orderId:'SO-1', itemsBackordered:[[sku:'A', quantity:2]]],
                     [orderId:'SO-2', itemsBackordered:[[sku:'A', quantity:1], [sku:'B', quantity:4]]]]]"/>
@@ -31,24 +24,13 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
     </service>
     <service verb="read" noun="Nothing">
-        <in-parameters>
-            <parameter name="scriptDeployment" type="Map"/>
-            <parameter name="userScriptId"/>
-        </in-parameters>
-        <out-parameters>
-            <parameter name="input" type="Object"/>
-            <parameter name="message"/>
-        </out-parameters>
+        <implements service="org.moqui.impl.ScriptServices.read#UserScriptDeploymentInput"/>
         <actions><set field="message" value="No finished result to read yet."/></actions>
     </service>
 
     <service verb="deliver" noun="ToTestEntity">
         <description>Records each delivery as a moqui.test.TestEntity row: testMedium = deployment id, testLong = the script result as JSON.</description>
-        <in-parameters>
-            <parameter name="scriptDeployment" type="Map" required="true"/>
-            <parameter name="scriptResult" type="Object" required="true"/>
-        </in-parameters>
-        <out-parameters><parameter name="message"/></out-parameters>
+        <implements service="org.moqui.impl.ScriptServices.deliver#UserScriptDeploymentResult"/>
         <actions>
             <service-call name="create#moqui.test.TestEntity" in-map="[testMedium:scriptDeployment.scriptDeploymentId,
                     testLong:groovy.json.JsonOutput.toJson(scriptResult)]"/>
@@ -56,11 +38,14 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
     </service>
     <service verb="deliver" noun="Refused">
-        <in-parameters>
-            <parameter name="scriptDeployment" type="Map"/>
-            <parameter name="scriptResult" type="Object"/>
-        </in-parameters>
+        <implements service="org.moqui.impl.ScriptServices.deliver#UserScriptDeploymentResult"/>
         <actions><return error="true" message="The endpoint refused it."/></actions>
+    </service>
+
+    <!-- an ordinary service, not marked as a delivery: a deployment may never name it -->
+    <service verb="delete" noun="Everything">
+        <in-parameters><parameter name="scriptResult" type="Object"/></in-parameters>
+        <actions><service-call name="create#moqui.test.TestEntity" in-map="[testMedium:'USD_TEST_UNMARKED_RAN']"/></actions>
     </service>
 
     <service verb="check" noun="QueueFull">

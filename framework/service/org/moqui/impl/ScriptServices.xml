@@ -143,6 +143,32 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <!-- ========== User Script Deployments ========== -->
+    <!-- A deployment names only services that implement one of these two interfaces, checked when it is stored and again
+        on every run: the scheduler runs them with no user, so an arbitrary service name would run any service unchecked. -->
+
+    <service verb="read" noun="UserScriptDeploymentInput" type="interface">
+        <description>Reads a deployment's input. Called by the scheduler with no user; check what the deployment may read
+            from its own fields (an owner added with extend-entity, say).</description>
+        <in-parameters>
+            <parameter name="scriptDeployment" type="Map" required="true"/>
+            <parameter name="userScriptId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="input" type="Object"><description>Any JSON-shaped value; none means nothing runs (NO_INPUT).</description></parameter>
+            <parameter name="inputSummary" type="Map"/>
+            <parameter name="message"><description>Recorded when there is no input.</description></parameter>
+        </out-parameters>
+    </service>
+    <service verb="deliver" noun="UserScriptDeploymentResult" type="interface">
+        <description>Delivers what a deployment's script returned (never empty). Called by the scheduler with no user;
+            an error it adds marks the run NOT_DELIVERED.</description>
+        <in-parameters>
+            <parameter name="scriptDeployment" type="Map" required="true"/>
+            <parameter name="scriptResult" type="Object" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"><description>Recorded as the run's message.</description></parameter></out-parameters>
+    </service>
+
 
     <service verb="store" noun="UserScriptDeployment">
         <description>Creates or updates a deployment after checking its script, cron, time zone and services, and sets
@@ -173,10 +199,10 @@ along with this software (see the LICENSE.md file). If not, see
                     try { java.time.ZoneId.of(timeZone) } catch (Exception e) { ec.message.addError("'${timeZone}' is not a time zone id.") }
                 }
             </script>
-            <if condition="inputServiceName &amp;&amp; !ec.service.isServiceDefined(inputServiceName)">
-                <message error="true">Input service ${inputServiceName} is not defined.</message></if>
-            <if condition="!ec.service.isServiceDefined(deliveryServiceName)">
-                <message error="true">Delivery service ${deliveryServiceName} is not defined.</message></if>
+            <if condition="inputServiceName &amp;&amp; !org.moqui.impl.script.ScriptDeploymentRunner.implementsInterface(ec, inputServiceName, org.moqui.impl.script.ScriptDeploymentRunner.INPUT_INTERFACE)">
+                <message error="true">Input service ${inputServiceName} does not implement ${org.moqui.impl.script.ScriptDeploymentRunner.INPUT_INTERFACE}.</message></if>
+            <if condition="!org.moqui.impl.script.ScriptDeploymentRunner.implementsInterface(ec, deliveryServiceName, org.moqui.impl.script.ScriptDeploymentRunner.DELIVERY_INTERFACE)">
+                <message error="true">Delivery service ${deliveryServiceName} does not implement ${org.moqui.impl.script.ScriptDeploymentRunner.DELIVERY_INTERFACE}.</message></if>
             <check-errors/>
 
             <set field="nextRunDate" from="isActive == 'Y' ? org.moqui.impl.script.ScriptDeploymentRunner.nextRunDate(cronExpression, timeZone, ec.user.nowTimestamp) : null"/>
