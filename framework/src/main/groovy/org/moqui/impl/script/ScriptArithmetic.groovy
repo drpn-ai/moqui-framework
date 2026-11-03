@@ -237,13 +237,12 @@ class ScriptArithmetic extends JexlArithmetic {
         } else if (value instanceof BigInteger) {
             if (((BigInteger) value).bitLength() > MAX_NUMBER_BITS) throw new LimitReached('NUMBER', 'A number grew too large.')
         } else if (value instanceof CharSequence) {
-            CharSequence text = (CharSequence) value
-            // NOTE: only short text is parsed here; longer number text is at most the source or input size, never inflated
-            if (text.length() <= 64) {
-                BigDecimal parsed = null
-                try { parsed = new BigDecimal(text.toString().trim()) } catch (NumberFormatException ignored) { }
-                if (parsed != null) ScriptBudget.checkDecimal(parsed)
-            }
+            // NOTE: text of any length is parsed: zero padding ('0' * 60 + '1E999999999') makes a huge exponent long text,
+            // and parsing returns a compact value (precision 1, scale -999999999), its cost bounded by the text cap;
+            // text that is not a number fails at its first stray character
+            BigDecimal parsed = null
+            try { parsed = new BigDecimal(value.toString().trim()) } catch (NumberFormatException ignored) { }
+            if (parsed != null) ScriptBudget.checkDecimal(parsed)
         }
     }
 
