@@ -114,7 +114,9 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
     protected final Map<String, WebappInfo> webappInfoMap = new HashMap<>()
     protected final List<NotificationMessageListener> registeredNotificationMessageListeners = []
 
-    protected final Map<String, ArtifactStatsInfo> artifactStatsInfoByType = new HashMap<>()
+    // Written by every thread that runs a service, screen or entity (and by worker threads): a plain HashMap lost entries
+    // and could hold a null, which made destroy() fail. ConcurrentHashMap holds neither a null key nor a null value.
+    protected final Map<String, ArtifactStatsInfo> artifactStatsInfoByType = new java.util.concurrent.ConcurrentHashMap<>()
     public final Map<ArtifactType, Boolean> artifactTypeAuthzEnabled = new EnumMap<ArtifactType, Boolean>(ArtifactType.class)
     public final Map<ArtifactType, Boolean> artifactTypeTarpitEnabled = new EnumMap<ArtifactType, Boolean>(ArtifactType.class)
 
@@ -823,7 +825,7 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
         boolean enableAuthz = !aefi.disableAuthz()
         try {
             for (ArtifactStatsInfo asi in asiList) {
-                if (asi.curHitBin == null) continue
+                if (asi == null || asi.curHitBin == null) continue
                 EntityValue ahb = asi.curHitBin.makeAhbValue(this, currentTimestamp)
                 ahb.setSequencedIdPrimary().create()
             }
@@ -1469,11 +1471,13 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
             String binKey = artifactName
             // TODO: may be more cases where we don't need to append artifactTypeEnum, ie based on artifactName
             if (artifactSubType != null && !ArtifactExecutionInfo.AT_SERVICE.is(artifactTypeEnum)) binKey = binKey.concat(artifactSubType)
+            if (binKey == null) return
             ArtifactStatsInfo statsInfo = (ArtifactStatsInfo) artifactStatsInfoByType.get(binKey)
             if (statsInfo == null) {
                 // consider seeding this from the DB using ArtifactHitReport to get all past data, or maybe not to better handle different servers/etc over time, etc
-                statsInfo = new ArtifactStatsInfo(artifactTypeEnum, artifactSubType, artifactName)
-                artifactStatsInfoByType.put(binKey, statsInfo)
+                ArtifactStatsInfo newInfo = new ArtifactStatsInfo(artifactTypeEnum, artifactSubType, artifactName)
+                statsInfo = (ArtifactStatsInfo) artifactStatsInfoByType.putIfAbsent(binKey, newInfo)
+                if (statsInfo == null) statsInfo = newInfo
             }
 
             // has the current bin expired since the last hit record?
