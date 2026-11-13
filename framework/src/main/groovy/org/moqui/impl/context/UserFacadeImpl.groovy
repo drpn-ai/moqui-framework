@@ -173,13 +173,8 @@ class UserFacadeImpl implements UserFacade {
             if (loginKey != null && !loginKey.isEmpty() && !"null".equals(loginKey) && !"undefined".equals(loginKey))
                 this.loginUserKey(loginKey)
         }
-        if (currentInfo.username == null && secureParameters.authUsername) {
-            // try the Moqui-specific parameters for instant login
-            // if we have credentials coming in anywhere other than URL parameters, try logging in
-            String authUsername = secureParameters.authUsername
-            String authPassword = secureParameters.authPassword
-            this.loginUser(authUsername, authPassword)
-        }
+        // authUsername/authPassword request parameters sign no one in (DAR-BE-276): a password alone skips whatever the
+        // application asks after it (Darpan's two-factor). Sign in through the application's own login service.
         if (eci.messageFacade.hasError()) request.setAttribute("moqui.login.error", "true")
 
         // NOTE: only tracking Visitor and Visit if there is a WebFacadeImpl in place
@@ -308,13 +303,7 @@ class UserFacadeImpl implements UserFacade {
         }
         // api_key / login_key are accepted as headers only. A key in the query string ends up in
         // load-balancer access logs, proxies and browser history; every Darpan client sends the header.
-        if (currentInfo.username == null && parameters.authUsername) {
-            // try the Moqui-specific parameters for instant login
-            // if we have credentials coming in anywhere other than URL parameters, try logging in
-            String authUsername = parameters.authUsername.get(0)
-            String authPassword = parameters.authPassword ? parameters.authPassword.get(0) : null
-            this.loginUser(authUsername, authPassword)
-        }
+        // authUsername/authPassword parameters sign no one in here either (DAR-BE-276).
     }
     void initFromHttpSession(HttpSession session) {
         this.session = session

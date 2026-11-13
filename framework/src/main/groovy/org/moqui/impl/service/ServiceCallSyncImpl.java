@@ -151,20 +151,6 @@ public class ServiceCallSyncImpl extends ServiceCallImpl implements ServiceCallS
 
         if (traceEnabled) logger.trace("Calling service " + serviceName + " initial input: " + currentParameters);
 
-        // get these before cleaning up the parameters otherwise will be removed
-        String username = null;
-        String password = null;
-        if (currentParameters.containsKey("authUsername")) {
-            username = (String) currentParameters.get("authUsername");
-            password = (String) currentParameters.get("authPassword");
-        } else if (currentParameters.containsKey("authUserAccount")) {
-            Map authUserAccount = (Map) currentParameters.get("authUserAccount");
-            username = (String) authUserAccount.get("username");
-            if (username == null || username.isEmpty()) username = (String) currentParameters.get("authUsername");
-            password = (String) authUserAccount.get("currentPassword");
-            if (password == null || password.isEmpty()) password = (String) currentParameters.get("authPassword");
-        }
-
         final String serviceType = sd != null ? sd.serviceType : "entity-implicit";
         ArrayList<ServiceEcaRule> secaRules = sfi.secaRules(serviceNameNoHash);
         boolean hasSecaRules = secaRules != null && secaRules.size() > 0;
@@ -195,14 +181,9 @@ public class ServiceCallSyncImpl extends ServiceCallImpl implements ServiceCallS
             return null;
         }
 
-        boolean userLoggedIn = false;
-
-        // always try to login the user if parameters are specified
-        if (username != null && password != null && username.length() > 0 && password.length() > 0) {
-            userLoggedIn = eci.getUser().loginUser(username, password);
-            // if user was not logged in we should already have an error message in place so just return
-            if (!userLoggedIn) return null;
-        }
+        // A service call never signs anyone in from its own parameters (authUsername/authPassword/authUserAccount): over
+        // JSON-RPC and REST those come from the request body, which made any remote call a password-only sign-in that
+        // skips whatever the application asks after the password (Darpan's two-factor, DAR-BE-276). Callers sign in first.
 
         if (sd != null && "true".equals(sd.authenticate) && eci.userFacade.getUsername() == null && !eci.userFacade.getLoggedInAnonymous()) {
             if (ignorePreviousError) eci.messageFacade.popErrors();
@@ -397,12 +378,6 @@ public class ServiceCallSyncImpl extends ServiceCallImpl implements ServiceCallS
                 if (suspendedTransaction) tf.resume();
             } catch (Throwable t) {
                 logger.error("Error resuming parent transaction after call to service " + serviceName, t);
-            }
-
-            try {
-                if (userLoggedIn) eci.userFacade.logoutLocal();
-            } catch (Throwable t) {
-                logger.error("Error logging out user after call to service " + serviceName, t);
             }
 
             if (loggedInAnonymous) eci.userFacade.logoutAnonymousOnly();
