@@ -306,13 +306,8 @@ class UserFacadeImpl implements UserFacade {
             if (loginKey != null && !loginKey.isEmpty() && !"null".equals(loginKey) && !"undefined".equals(loginKey))
                 this.loginUserKey(loginKey)
         }
-        if (currentInfo.username == null && (parameters.api_key || parameters.login_key)) {
-            String loginKey = parameters.api_key ? parameters.api_key.get(0) : (parameters.login_key ? parameters.login_key.get(0) : null)
-            loginKey = loginKey.trim()
-            logger.warn("loginKey2 ${loginKey}")
-            if (loginKey != null && !loginKey.isEmpty() && !"null".equals(loginKey) && !"undefined".equals(loginKey))
-                this.loginUserKey(loginKey)
-        }
+        // api_key / login_key are accepted as headers only. A key in the query string ends up in
+        // load-balancer access logs, proxies and browser history; every Darpan client sends the header.
         if (currentInfo.username == null && parameters.authUsername) {
             // try the Moqui-specific parameters for instant login
             // if we have credentials coming in anywhere other than URL parameters, try logging in
