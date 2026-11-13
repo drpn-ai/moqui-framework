@@ -21,6 +21,7 @@ import org.apache.shiro.SecurityUtils
 import org.apache.shiro.authc.credential.CredentialsMatcher
 import org.apache.shiro.authc.credential.HashedCredentialsMatcher
 import org.apache.shiro.crypto.hash.SimpleHash
+import org.moqui.impl.util.SlowPasswordHash
 import org.apache.shiro.env.BasicIniEnvironment
 import org.apache.shiro.mgt.SecurityManager
 import org.codehaus.groovy.control.CompilationUnit
@@ -968,6 +969,8 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
         return internalSecurityManager
     }
     CredentialsMatcher getCredentialsMatcher(String hashType, boolean isBase64) {
+        // a slow (PBKDF2) stored hash carries its own type; plain digest types keep Shiro's matcher
+        if (SlowPasswordHash.isSlowType(hashType)) return new SlowPasswordHash.Matcher(hashType)
         HashedCredentialsMatcher hcm = new HashedCredentialsMatcher()
         if (hashType) {
             hcm.setHashAlgorithmName(hashType)
@@ -987,8 +990,40 @@ class ExecutionContextFactoryImpl implements ExecutionContextFactory {
     // NOTE: used in UserServices.xml
     String getSimpleHash(String source, String salt) { return getSimpleHash(source, salt, getPasswordHashType(), false) }
     String getSimpleHash(String source, String salt, String hashType, boolean isBase64) {
+        // PBKDF2 hashes are always hex; isBase64 only describes legacy digest rows
+        if (SlowPasswordHash.isSlowType(hashType)) return SlowPasswordHash.hash(source, salt, hashType)
         SimpleHash simple = new SimpleHash(hashType ?: getPasswordHashType(), source, salt ?: '')
         return isBase64 ? simple.toBase64() : simple.toHex()
+    }
+
+    /** Stored hash type for a password set or re-hashed now: password.@slow-hash-type (PBKDF2WithHmacSHA256 by
+     * default) with its iteration count, e.g. "PBKDF2WithHmacSHA256:600000". An empty slow-hash-type (or "none")
+     * turns slow hashing off and new passwords use encrypt-hash-type as before.
+     *
+     * getPasswordHashType() and the two-argument getSimpleHash() keep meaning encrypt-hash-type: they are also
+     * the fallback for rows with no passwordHashType and are used for short-lived codes (authc factor codes), so
+     * changing them would strand existing rows. */
+    String getNewPasswordHashType() {
+        MNode passwordNode = confXmlRoot.first("user-facade").first("password")
+        String slowType = passwordNode.attribute("slow-hash-type")
+        if (slowType == null) slowType = SlowPasswordHash.ALGORITHM
+        slowType = slowType.trim()
+        if (slowType.isEmpty() || "none".equalsIgnoreCase(slowType)) return getPasswordHashType()
+        if (!SlowPasswordHash.ALGORITHM.equals(slowType)) throw new IllegalStateException(
+                "user-facade.password.@slow-hash-type supports only ${SlowPasswordHash.ALGORITHM} (or empty to turn it off), got ${slowType}")
+        String iterationsAttr = passwordNode.attribute("slow-hash-iterations")
+        int iterations = iterationsAttr ? Integer.parseInt(iterationsAttr.trim()) : SlowPasswordHash.DEFAULT_ITERATIONS
+        return SlowPasswordHash.typeFor(iterations)
+    }
+    /** Salt for a password set or re-hashed now: 24 URL-safe base64 characters from SecureRandom (144 bits) */
+    static String getNewPasswordSalt() { return StringUtilities.getRandomString(24) }
+    /** Hash for a password set now, to store with getNewPasswordHashType() and the given salt */
+    String hashNewPassword(String password, String salt) { return getSimpleHash(password, salt, getNewPasswordHashType(), false) }
+    /** True when a row's stored hash is not the type a password set now would get, and slow hashing is on */
+    boolean passwordNeedsRehash(String storedHashType, String storedBase64) {
+        String newType = getNewPasswordHashType()
+        if (!SlowPasswordHash.isSlowType(newType)) return false
+        return !newType.equals(storedHashType) || "Y".equals(storedBase64)
     }
 
     String getLoginKeyHashType() {

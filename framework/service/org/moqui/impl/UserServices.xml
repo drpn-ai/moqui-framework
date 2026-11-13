@@ -337,13 +337,15 @@ along with this software (see the LICENSE.md file). If not, see
                 <entity-delete value-field="existingUserPasswordHistoryList.remove(0)"/>
             </while>
 
-            <!-- encrypt password (using password.@encrypt-hash-type default SHA-256) and save -->
-            <set field="salt" from="ec.ecfi.randomSalt"/>
+            <!-- hash the password with the type for new passwords (password.@slow-hash-type, PBKDF2WithHmacSHA256 by
+                default; encrypt-hash-type when slow hashing is off) and a fresh salt, and save -->
+            <set field="salt" from="ec.ecfi.newPasswordSalt"/>
+            <set field="newPasswordHashType" from="ec.ecfi.newPasswordHashType"/>
             <service-call name="update#moqui.security.UserAccount">
                 <field-map field-name="userId"/>
-                <field-map field-name="currentPassword" from="ec.ecfi.getSimpleHash(newPassword, salt)"/>
+                <field-map field-name="currentPassword" from="ec.ecfi.getSimpleHash(newPassword, salt, newPasswordHashType, false)"/>
                 <field-map field-name="passwordSalt" from="salt"/>
-                <field-map field-name="passwordHashType" from="ec.ecfi.passwordHashType"/>
+                <field-map field-name="passwordHashType" from="newPasswordHashType"/>
                 <field-map field-name="passwordBase64" value="N"/>
                 <field-map field-name="passwordSetDate" from="ec.user.nowTimestamp"/>
                 <field-map field-name="requirePasswordChange"/>

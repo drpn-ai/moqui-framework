@@ -294,7 +294,9 @@
         <artifact-execution type="AT_ENTITY" authz-enabled="true" tarpit-enabled="false"/>
     </artifact-execution-facade>
     <user-facade>
-        <password encrypt-hash-type="SHA-256" min-length="8" min-digits="1" min-others="1"
+        <!-- slow-hash-type: new and changed passwords are stored as PBKDF2-HMAC-SHA256 with slow-hash-iterations;
+            rows on an older type keep verifying and are re-hashed at the next successful sign-in. Empty turns it off. -->
+        <password encrypt-hash-type="SHA-256" slow-hash-type="PBKDF2WithHmacSHA256" slow-hash-iterations="600000" min-length="8" min-digits="1" min-others="1"
                   history-limit="5" change-weeks="104" email-require-change="false" email-expire-hours="48"/>
         <login-key encrypt-hash-type="SHA-256" expire-hours="144"/><!-- default expire 6 days, 144 hours -->
         <login max-failures="3" disable-minutes="5" history-store="true" history-incorrect-password="false"/>

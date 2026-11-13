@@ -285,6 +285,8 @@ class MoquiShiroRealm implements Realm, Authorizer {
                             .parameters((Map<String, Object>) [userId:newUserAccount.userId]).requireNewTransaction(true).call()
                     throw new IncorrectCredentialsException(ecfi.resource.expand('Password incorrect for username ${username}','',[username:username]))
                 }
+                // the password is proven: move a row on an older hash type to the current slow hash
+                rehashPasswordIfNeeded(eci, newUserAccount, token)
             }
 
             // credentials matched
@@ -302,6 +304,42 @@ class MoquiShiroRealm implements Realm, Authorizer {
         }
 
         return info
+    }
+
+    /** Re-hash a just-verified password to ecfi.getNewPasswordHashType() when the row is on another type (legacy
+     *  salted SHA-256, Base64, or a different iteration count). Runs in the caller's transaction, like the login
+     *  state reset in loginPostPassword, so it adds no lock the login does not already take. passwordSetDate and
+     *  the password history are left alone: the password itself did not change. A failure is logged and the
+     *  sign-in continues on the old hash. */
+    static void rehashPasswordIfNeeded(ExecutionContextImpl eci, EntityValue userAccount, AuthenticationToken token) {
+        String userId = (String) userAccount.getNoCheckSimple("userId")
+        try {
+            ExecutionContextFactoryImpl ecfi = eci.ecfi
+            String oldType = (String) userAccount.getNoCheckSimple("passwordHashType")
+            if (!ecfi.passwordNeedsRehash(oldType, (String) userAccount.getNoCheckSimple("passwordBase64"))) return
+            String password = SlowPasswordHash.credentialString(token.getCredentials())
+            if (password == null) return
+
+            String newType = ecfi.getNewPasswordHashType()
+            String salt = ExecutionContextFactoryImpl.getNewPasswordSalt()
+            String hashed = ecfi.getSimpleHash(password, salt, newType, false)
+            boolean alreadyDisabled = eci.artifactExecutionFacade.disableAuthz()
+            try {
+                EntityValue toUpdate = eci.entityFacade.find("moqui.security.UserAccount").condition("userId", userId)
+                        .useCache(false).one()
+                if (toUpdate == null) return
+                toUpdate.set("currentPassword", hashed)
+                toUpdate.set("passwordSalt", salt)
+                toUpdate.set("passwordHashType", newType)
+                toUpdate.set("passwordBase64", "N")
+                toUpdate.update()
+            } finally {
+                if (!alreadyDisabled) eci.artifactExecutionFacade.enableAuthz()
+            }
+            logger.info("Re-hashed password for userId ${userId} from ${oldType ?: 'default'} to ${newType} at sign-in")
+        } catch (Exception e) {
+            logger.warn("Could not re-hash password for userId ${userId} at sign-in, it stays on its old hash: ${e.toString()}")
+        }
     }
 
     static boolean checkCredentials(String username, String password, ExecutionContextFactoryImpl ecfi) {

@@ -358,6 +358,19 @@ along with this software (see the LICENSE.md file). If not, see
                     <xs:enumeration value="MD5"/>
                 </xs:restriction></xs:simpleType>
             </xs:attribute>
+            <xs:attribute name="slow-hash-type" default="PBKDF2WithHmacSHA256">
+                <xs:annotation><xs:documentation>Slow hash for new and changed passwords, stored with its iteration
+                    count (PBKDF2WithHmacSHA256:600000). Rows on another type keep verifying with that type and are
+                    re-hashed to this one at the next successful sign-in. Empty turns slow hashing off and new
+                    passwords use encrypt-hash-type. encrypt-hash-type stays the fallback for rows with no
+                    passwordHashType.</xs:documentation></xs:annotation>
+                <xs:simpleType><xs:restriction base="xs:token">
+                    <xs:enumeration value="PBKDF2WithHmacSHA256"/>
+                    <xs:enumeration value=""/>
+                </xs:restriction></xs:simpleType>
+            </xs:attribute>
+            <xs:attribute name="slow-hash-iterations" type="xs:positiveInteger" default="600000">
+                <xs:annotation><xs:documentation>PBKDF2 iteration count for slow-hash-type</xs:documentation></xs:annotation></xs:attribute>
             <xs:attribute name="min-length" type="xs:nonNegativeInteger" default="8">
                 <xs:annotation><xs:documentation>Minimum length of password</xs:documentation></xs:annotation></xs:attribute>
             <xs:attribute name="min-digits" type="xs:nonNegativeInteger" default="1">
