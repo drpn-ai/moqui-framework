@@ -88,7 +88,7 @@ dependencies {
 
     // Freemarker
     // Remember to change the version number in FtlTemplateRenderer and MNode class when upgrading
-    api 'org.freemarker:freemarker:2.3.34' // Apache 2.0
+    api 'org.freemarker:freemarker:2.3.35' // Apache 2.0
 
     // H2 Database
     api 'com.h2database:h2:2.4.240' // MPL 2.0, EPL 1.0
@@ -113,12 +113,12 @@ dependencies {
     api 'com.beust:jcommander:1.82'
 
     // Jackson Databind (JSON, etc)
-    api 'com.fasterxml.jackson.core:jackson-databind:2.21.2'
+    api 'com.fasterxml.jackson.core:jackson-databind:2.21.8'
 
     // Jetty HTTP Client and Proxy Servlet
-    api 'org.eclipse.jetty:jetty-client:12.1.5' // Apache 2.0
-    api 'org.eclipse.jetty.ee11:jetty-ee11-proxy:12.1.5' // Apache 2.0
-    api 'org.eclipse.jetty:jetty-jndi:12.1.5' // Apache 2.0
+    api 'org.eclipse.jetty:jetty-client:12.1.15' // Apache 2.0
+    api 'org.eclipse.jetty.ee11:jetty-ee11-proxy:12.1.15' // Apache 2.0
+    api 'org.eclipse.jetty:jetty-jndi:12.1.15' // Apache 2.0
 
     // jakarta.mail
     api 'jakarta.mail:jakarta.mail-api:2.1.5' // mail api
@@ -128,24 +128,24 @@ dependencies {
     api 'org.jsoup:jsoup:1.21.2' // MIT
 
     // Apache Shiro
-    api('org.apache.shiro:shiro-core:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-web:2.0.6:jakarta') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-lang:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-cache:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-event:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-config-core:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-config-ogdl:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-crypto-core:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-crypto-hash:2.0.6') { transitive = false } // Apache 2.0
-    api('org.apache.shiro:shiro-crypto-cipher:2.0.6') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-core:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-web:2.2.1:jakarta') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-lang:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-cache:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-event:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-config-core:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-config-ogdl:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-crypto-core:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-crypto-hash:2.2.1') { transitive = false } // Apache 2.0
+    api('org.apache.shiro:shiro-crypto-cipher:2.2.1') { transitive = false } // Apache 2.0
     api('org.owasp.encoder:encoder:1.4.0') // BSD - transitive dependency of shiro-web
 
     // SLF4J, Log4j 2 (note Log4j 2 is used by various libraries, best not to replace it even if mostly possible with SLF4J)
     api 'org.slf4j:slf4j-api:2.0.17'
-    implementation 'org.apache.logging.log4j:log4j-core:2.25.4'
-    implementation 'org.apache.logging.log4j:log4j-api:2.25.4'
-    runtimeOnly 'org.apache.logging.log4j:log4j-jcl:2.25.4'
-    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.25.4'
+    implementation 'org.apache.logging.log4j:log4j-core:2.25.5'
+    implementation 'org.apache.logging.log4j:log4j-api:2.25.5'
+    runtimeOnly 'org.apache.logging.log4j:log4j-jcl:2.25.5'
+    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.25.5'
     // javax.annotation.Nonnull/Nullable (JSR-305) are used directly in framework sources. They used to arrive only by
     // accident, through log4j 2.25.2's spotbugs-annotations; log4j 2.25.4 no longer exports it, so declare it here.
     // Compile-only, exactly as before: it was never on the runtime classpath.
@@ -183,9 +183,9 @@ dependencies {
 
     // ========== executable war dependencies ==========
     // Jetty
-    execWarRuntimeOnly 'org.eclipse.jetty:jetty-server:12.1.5' // Apache 2.0
-    execWarRuntimeOnly 'org.eclipse.jetty.ee11:jetty-ee11-webapp:12.1.5' // Apache 2.0
-    execWarRuntimeOnly 'org.eclipse.jetty.ee11.websocket:jetty-ee11-websocket-jakarta-server:12.1.5' // Apache 2.0
+    execWarRuntimeOnly 'org.eclipse.jetty:jetty-server:12.1.15' // Apache 2.0
+    execWarRuntimeOnly 'org.eclipse.jetty.ee11:jetty-ee11-webapp:12.1.15' // Apache 2.0
+    execWarRuntimeOnly 'org.eclipse.jetty.ee11.websocket:jetty-ee11-websocket-jakarta-server:12.1.15' // Apache 2.0
 }
 
 // setup task dependencies to make sure the start sourceSets always get run
