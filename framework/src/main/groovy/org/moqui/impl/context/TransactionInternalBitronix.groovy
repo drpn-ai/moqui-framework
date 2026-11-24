@@ -93,7 +93,9 @@ class TransactionInternalBitronix implements TransactionInternal {
                     logger.warn("Error setting ${dsi.uniqueName} property ${name}, ignoring: ${e.toString()}")
                 }
             }
-            pds.setXaDataSource(xaDataSource)
+            // a branch whose xa_end reports XA_RB* still gets xa_rollback; Bitronix skips it, which leaves a MySQL
+            // connection stuck in XA ROLLBACK ONLY after a deadlock (see XaEndRollbackDataSource)
+            pds.setXaDataSource(new XaEndRollbackDataSource(xaDataSource))
         } else {
             pds.setClassName("bitronix.tm.resource.jdbc.lrc.LrcXADataSource")
             pds.getDriverProperties().setProperty("driverClassName", dsi.jdbcDriver)
