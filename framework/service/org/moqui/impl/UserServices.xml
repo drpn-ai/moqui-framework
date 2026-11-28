@@ -128,7 +128,10 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="increment" noun="UserAccountFailedLogins" authenticate="anonymous-all" allow-remote="false">
         <in-parameters><parameter name="userId" required="true"/></in-parameters>
         <actions>
-            <entity-find-one entity-name="moqui.security.UserAccount" value-field="userAccount"/>
+            <!-- for-update: guesses landing together must each count; read unlocked, they all read the same count and all
+                 but one increment was lost, so the lockout let through several times max-failures. Every caller runs this
+                 in a transaction of its own, and the entity-update below takes the same row lock anyway. -->
+            <entity-find-one entity-name="moqui.security.UserAccount" value-field="userAccount" for-update="true"/>
             <set field="userAccount.successiveFailedLogins"
                  from="userAccount.successiveFailedLogins ? userAccount.successiveFailedLogins + 1 : 1"/>
             <set field="maxFailures" from="(ec.ecfi.confXmlRoot.first('user-facade').first('login').attribute('max-failures') ?: 3) as Integer"/>
